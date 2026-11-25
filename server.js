@@ -34,30 +34,29 @@ app.post('/ask', async (req, res) => {
       return res.status(500).json({ error: 'A chave GROQ_API_KEY não está configurada no Render.' });
     }
 
-    // 1. Consulta os modelos realmente ativos na tua conta Groq
+    // Consulta os modelos ativos na conta Groq
     const modelsRes = await fetch('https://api.groq.com/openai/v1/models', {
       headers: { 'Authorization': `Bearer ${apiKey}` }
     });
     const modelsData = await modelsRes.json();
 
     if (!modelsRes.ok || !Array.isArray(modelsData.data)) {
-      const msg = modelsData.error?.message || JSON.stringify(modelsData);
-      return res.status(modelsRes.status).json({ error: `Erro ao listar modelos: ${msg}` });
+      return res.status(modelsRes.status).json({ error: 'Erro ao listar modelos da Groq.' });
     }
 
-    // Filtra apenas modelos de texto/chat (ignora whisper, guard, tts, etc.)
+    // Filtra estritamente apenas modelos de chat/texto (evitando áudio, orpheus, guard, tts, etc.)
     const chatModels = modelsData.data
       .map(m => m.id)
-      .filter(id => !/whisper|guard|tts|embed|vision/i.test(id));
+      .filter(id => !/orpheus|whisper|guard|tts|embed|vision|allam/i.test(id));
 
     if (chatModels.length === 0) {
-      return res.status(500).json({ error: 'Nenhum modelo de texto encontrado na tua conta Groq.' });
+      return res.status(500).json({ error: 'Nenhum modelo de chat compatível encontrado.' });
     }
 
-    // Escolhe o primeiro modelo de chat disponível
-    const chosenModel = chatModels[0];
+    // Prioriza Qwen ou GPT-OSS se estiverem na lista, senão pega o primeiro seguro
+    const chosenModel = chatModels.find(id => id.includes('qwen') || id.includes('gpt-oss') || id.includes('llama')) || chatModels[0];
 
-    // 2. Faz a pergunta usando o modelo encontrado
+    // Faz a chamada para a API da Groq
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -81,9 +80,7 @@ app.post('/ask', async (req, res) => {
 
     if (!response.ok) {
       const errorMsg = data.error?.message || JSON.stringify(data);
-      return res.status(response.status).json({
-        error: `Erro da Groq (${chosenModel}): ${errorMsg} | Disponíveis: ${chatModels.join(', ')}`
-      });
+      return res.status(response.status).json({ error: `Erro da Groq (${chosenModel}): ${errorMsg}` });
     }
 
     const aiReply = data.choices[0].message.content.trim();
