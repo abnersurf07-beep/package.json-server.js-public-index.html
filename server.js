@@ -12,7 +12,6 @@ const queues = {};
 
 // Converte texto em uma lista de strings binárias de 8 bits (ASCII)
 function textToBinaryArray(text) {
-  // Remove acentos para compatibilidade com displays ASCII padrão
   const cleanText = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const result = [];
   for (let i = 0; i < cleanText.length; i++) {
@@ -24,6 +23,29 @@ function textToBinaryArray(text) {
   return result;
 }
 
+// Descobre automaticamente um modelo válido na tua conta da Groq
+async function getAvailableModel(apiKey) {
+  const res = await fetch('https://api.groq.com/openai/v1/models', {
+    headers: { 'Authorization': `Bearer ${apiKey}` }
+  });
+  const data = await res.json();
+  if (!res.ok || !data.data) {
+    throw new Error(data.error?.message || 'Chave GROQ_API_KEY inválida ou sem modelos ativos.');
+  }
+  // Filtra apenas modelos de texto (ignora modelos de áudio whisper ou visão/guard)
+  const textModels = data.data.filter(m => 
+    !m.id.includes('whisper') && 
+    !m.id.includes('guard') && 
+    !m.id.includes('vision')
+  );
+  if (textModels.length === 0) {
+    throw new Error('Nenhum modelo de texto disponível na tua conta Groq.');
+  }
+  // Dá preferência a modelos Llama ou Gemma, senão usa o primeiro da lista
+  const preferred = textModels.find(m => m.id.includes('llama') || m.id.includes('gemma'));
+  return preferred ? preferred.id : textModels[0].id;
+}
+
 // Rota chamada pelo site para perguntar à IA da Groq
 app.post('/ask', async (req, res) => {
   const { prompt, sid = 'default' } = req.body;
@@ -33,14 +55,17 @@ app.post('/ask', async (req, res) => {
   }
 
   try {
+    const apiKey = process.env.GROQ_API_KEY;
+    const activeModel = await getAvailableModel(apiKey);
+
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: activeModel,
         messages: [
           {
             role: 'system',
@@ -65,10 +90,11 @@ app.post('/ask', async (req, res) => {
 
     res.json({
       reply: aiReply,
+      modelUsed: activeModel,
       queuedCharacters: queues[sid].length
     });
   } catch (error) {
-    res.status(500).json({ error: 'Erro interno no servidor: ' + error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -77,7 +103,6 @@ app.get('/typewriter', (req, res) => {
   const sid = req.query.sid || 'default';
   const queue = queues[sid] || [];
 
-  // Pega a próxima letra da fila ou envia 8 zeros se estiver vazia
   const nextBinary = queue.length > 0 ? queue.shift() : '00000000';
 
   res.json({
