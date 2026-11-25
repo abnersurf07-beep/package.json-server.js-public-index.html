@@ -3,121 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Typewriter - Construa Lógica!</title>
+    <title>IA para Roblox - Construa Lógica!</title>
     <style>
-        body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-        }
-        .card {
-            background-color: #1e293b;
-            padding: 2rem;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            width: 100%;
-            max-width: 450px;
-            border: 1px solid #334155;
-        }
-        h1 {
-            margin-top: 0;
-            font-size: 1.5rem;
-            color: #38bdf8;
-            text-align: center;
-        }
-        label {
-            display: block;
-            margin-top: 1rem;
-            font-size: 0.9rem;
-            color: #94a3b8;
-        }
-        input, textarea {
-            width: 100%;
-            padding: 0.75rem;
-            margin-top: 0.4rem;
-            border-radius: 8px;
-            border: 1px solid #475569;
-            background-color: #0f172a;
-            color: #fff;
-            box-sizing: border-box;
-            font-size: 1rem;
-        }
-        button {
-            width: 100%;
-            padding: 0.85rem;
-            margin-top: 1.5rem;
-            background-color: #0284c7;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        button:hover {
-            background-color: #0369a1;
-        }
-        .status {
-            margin-top: 1.2rem;
-            padding: 0.8rem;
-            border-radius: 8px;
-            background-color: #0f172a;
-            font-family: monospace;
-            font-size: 0.9rem;
-            color: #4ade80;
-            min-height: 40px;
-        }
+        body { font-family: Arial, sans-serif; background: #1e1e1e; color: #fff; padding: 20px; max-width: 600px; margin: auto; }
+        label { display: block; margin-top: 15px; font-weight: bold; }
+        input, textarea, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px; border: none; box-sizing: border-box; }
+        textarea { resize: vertical; height: 80px; }
+        button { background: #4CAF50; color: white; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        button:hover { background: #45a049; }
+        #status { margin-top: 20px; padding: 10px; background: #2d2d2d; border-left: 4px solid #4CAF50; white-space: pre-wrap; word-break: break-all; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>🤖 AI Typewriter (Roblox)</h1>
-        
-        <label for="sid">Session ID (SID):</label>
-        <input type="text" id="sid" value="meupainel1" placeholder="Ex: meupainel1">
+    <h2>Controlador IA - Roblox Construa Lógica!</h2>
+    
+    <label for="sid">Session ID (SID):</label>
+    <input type="text" id="sid" value="meupainel1" placeholder="Ex: meupainel1">
 
-        <label for="prompt">Pergunta para a IA:</label>
-        <textarea id="prompt" rows="3" placeholder="Ex: Qual a capital do Brasil?"></textarea>
+    <label for="prompt">Pergunta para a IA:</label>
+    <textarea id="prompt" placeholder="Digite uma mensagem curta para o jogo..."></textarea>
 
-        <button onclick="enviarPergunta()">Enviar para o Painel do Jogo</button>
+    <button onclick="enviarPergunta()">Enviar para o Jogo</button>
 
-        <div class="status" id="status">Aguardando pergunta...</div>
-    </div>
+    <h3>Status / Resposta:</h3>
+    <div id="status">Aguardando envio...</div>
 
     <script>
         async function enviarPergunta() {
-            const prompt = document.getElementById('prompt').value;
-            const sid = document.getElementById('sid').value || 'default';
+            const sid = document.getElementById('sid').value.trim() || 'default';
+            const prompt = document.getElementById('prompt').value.trim();
             const statusDiv = document.getElementById('status');
 
-            if (!prompt) return;
-            statusDiv.style.color = '#fbbf24';
-            statusDiv.innerText = 'Pensando e enviando para o Roblox...';
+            if (!prompt) {
+                statusDiv.innerText = "Erro: Digite uma pergunta antes de enviar.";
+                return;
+            }
+
+            statusDiv.innerText = "Enviando para a IA...";
 
             try {
-                const res = await fetch('/ask', {
+                const response = await fetch('/ask', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt, sid })
                 });
-                const data = await res.json();
 
-                if (data.success) {
-                    statusDiv.style.color = '#4ade80';
-                    statusDiv.innerText = `Enviado (${data.queueLength} letras): "${data.reply}"`;
-                } else {
-                    statusDiv.style.color = '#f87171';
-                    statusDiv.innerText = 'Erro: ' + data.error;
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro desconhecido no servidor.');
                 }
-            } catch (e) {
-                statusDiv.style.color = '#f87171';
-                statusDiv.innerText = 'Erro de conexão com o servidor.';
+
+                statusDiv.innerText = "Sucesso! Resposta na fila: " + data.reply;
+            } catch (err) {
+                statusDiv.innerText = "Erro: " + err.message;
             }
         }
     </script>
