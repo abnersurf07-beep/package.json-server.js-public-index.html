@@ -42,7 +42,7 @@ app.post('/ask', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: 'qwen/qwen3.8-27b',
         messages: [
           {
             role: 'system',
