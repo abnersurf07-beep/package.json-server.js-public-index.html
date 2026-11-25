@@ -34,6 +34,30 @@ app.post('/ask', async (req, res) => {
       return res.status(500).json({ error: 'A chave GROQ_API_KEY não está configurada no Render.' });
     }
 
+    // 1. Consulta os modelos realmente ativos na tua conta Groq
+    const modelsRes = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    });
+    const modelsData = await modelsRes.json();
+
+    if (!modelsRes.ok || !Array.isArray(modelsData.data)) {
+      const msg = modelsData.error?.message || JSON.stringify(modelsData);
+      return res.status(modelsRes.status).json({ error: `Erro ao listar modelos: ${msg}` });
+    }
+
+    // Filtra apenas modelos de texto/chat (ignora whisper, guard, tts, etc.)
+    const chatModels = modelsData.data
+      .map(m => m.id)
+      .filter(id => !/whisper|guard|tts|embed|vision/i.test(id));
+
+    if (chatModels.length === 0) {
+      return res.status(500).json({ error: 'Nenhum modelo de texto encontrado na tua conta Groq.' });
+    }
+
+    // Escolhe o primeiro modelo de chat disponível
+    const chosenModel = chatModels[0];
+
+    // 2. Faz a pergunta usando o modelo encontrado
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -41,7 +65,7 @@ app.post('/ask', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: chosenModel,
         messages: [
           {
             role: 'system',
@@ -57,11 +81,9 @@ app.post('/ask', async (req, res) => {
 
     if (!response.ok) {
       const errorMsg = data.error?.message || JSON.stringify(data);
-      return res.status(response.status).json({ error: `Erro da Groq: ${errorMsg}` });
-    }
-
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      return res.status(500).json({ error: 'Resposta inválida recebida da API da Groq.' });
+      return res.status(response.status).json({
+        error: `Erro da Groq (${chosenModel}): ${errorMsg} | Disponíveis: ${chatModels.join(', ')}`
+      });
     }
 
     const aiReply = data.choices[0].message.content.trim();
@@ -69,6 +91,7 @@ app.post('/ask', async (req, res) => {
 
     res.json({
       reply: aiReply,
+      model: chosenModel,
       queuedCharacters: queues[sid].length
     });
   } catch (error) {
